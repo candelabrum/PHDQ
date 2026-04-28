@@ -36,6 +36,7 @@ from GPTID.IntrinsicDimCUDA_clean import pairwise_distances
 from scipy.spatial.distance import pdist, squareform
 from scipy.sparse.csgraph import minimum_spanning_tree
 from sklearn.manifold import TSNE
+from sklearn.metrics import roc_auc_score
 from phd_qwen_CUDA_clean import get_phd, load_roberta_model, load_qwen_model
 from tqdm import tqdm
 from scipy.special import softmax
@@ -223,7 +224,9 @@ def plot_median_by_param_value(
     min_count_plot=100,
     obj_name='d_energy',
     xlim=0.5,
-    filename_save='figures/default'
+    filename_save='figures/default',
+    save_roc_auc=True,
+    roc_auc_path=None
 ):
     model2count = df_en.iloc[:limit, :].groupby('model').count()[['text']]
     models = model2count.query(f"text > {min_count_plot}").index.tolist()
@@ -233,6 +236,44 @@ def plot_median_by_param_value(
     d_energies = pd.concat(d_energy_stats_df_list)
     df_joined = d_energies.set_index('text').join(df_filter.set_index('text')).reset_index()
     df_joined_filtered = df_joined.query("model in @models")
+
+    if save_roc_auc:
+        roc_rows = []
+        for param_value, grp in df_joined_filtered.groupby('param_value'):
+            y_true = pd.to_numeric(grp['model'], errors='coerce')
+            y_score = pd.to_numeric(grp['d_hat'], errors='coerce')
+            valid_mask = y_true.notna() & y_score.notna()
+            y_true = y_true[valid_mask]
+            y_score = y_score[valid_mask]
+
+            n_samples = int(valid_mask.sum())
+            n_pos = int((y_true == 1).sum())
+            n_neg = int((y_true == 0).sum())
+
+            if n_samples < 2:
+                roc_auc = np.nan
+                status = 'insufficient_samples'
+            elif n_pos == 0 or n_neg == 0:
+                roc_auc = np.nan
+                status = 'single_class'
+            else:
+                roc_auc = float(roc_auc_score(y_true, y_score))
+                status = 'ok'
+
+            roc_rows.append({
+                'param_value': float(param_value),
+                'roc_auc': roc_auc,
+                'n_samples': n_samples,
+                'n_pos': n_pos,
+                'n_neg': n_neg,
+                'status': status,
+            })
+
+        roc_auc_df = pd.DataFrame(roc_rows).sort_values('param_value').reset_index(drop=True)
+        if roc_auc_path is None:
+            roc_auc_path = filename_save + '_roc_auc.csv'
+        roc_auc_df.to_csv(roc_auc_path, index=False)
+
     for model_idx, model_name in enumerate(models):
         df_model = df_joined_filtered.query("model == @model_name")
         df_model = df_model.query(f"param_value < {xlim}").query("d_hat > 0")

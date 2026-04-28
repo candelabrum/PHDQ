@@ -89,6 +89,7 @@ def main() -> None:
 
     for obj_name, stats_list in plot_specs:
         output_base = args.output_dir / f"{obj_name}_{suffix}"
+        roc_auc_path = args.output_dir / f"{obj_name}_{suffix}_roc_auc.csv"
         plot_median_by_param_value(
             df_plot,
             stats_list,
@@ -97,6 +98,8 @@ def main() -> None:
             obj_name=obj_name,
             xlim=args.xlim,
             filename_save=str(output_base),
+            save_roc_auc=True,
+            roc_auc_path=str(roc_auc_path),
         )
 
     print(f"Saved figures to: {args.output_dir}")
