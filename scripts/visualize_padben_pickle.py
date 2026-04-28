@@ -55,7 +55,7 @@ def main() -> None:
 
     (
         df_en,
-        _d_hat_stats_df_list,
+        d_hat_stats_df_list,
         d_energy_range_stats_df_list,
         d_energy_upper_stats_df_list,
         d_energy_lower_stats_df_list,
@@ -82,6 +82,7 @@ def main() -> None:
         suffix = stem
 
     plot_specs = [
+        ("d_hat", d_hat_stats_df_list),
         ("d_energy_range", d_energy_range_stats_df_list),
         ("d_energy_upper", d_energy_upper_stats_df_list),
         ("d_energy_lower", d_energy_lower_stats_df_list),
