@@ -305,25 +305,32 @@ class PHDimScale:
     def calculate(self, embeds, object_name, tokens):
         rows_p = []
         self.len_text = embeds.shape[0]
+        tokens_arr = np.asarray(tokens)
+        self.n_values = []
         for n_fraction in self.n_fraction_list:
+            n = int(n_fraction * self.len_text)
+            if n > 1 and n not in self.n_values:
+                self.n_values.append(n)
+
+        for n in self.n_values:
             for r in range(self.replicates):
-                n = int(n_fraction * embeds.shape[0])
                 indices = np.random.choice(embeds.shape[0], size=n, replace=self.replace)
                 pts = embeds[indices, :]
 
                 ###
                 # print("before mst lengths:") 
-                mst_lengths = get_mst_edge_lengths(pts, return_matrix=True)
+                mst_matrix = get_mst_edge_lengths(pts, return_matrix=True)
                 # print("after mst lengths:") 
                 # print("tokens len: ", len([token for index, token in enumerate(tokens) if index in indices]))
                 # print("mst_lengts: ", mst_lengths.shape)
-                df_edges = calculate_df_edges([token for index, token in enumerate(tokens) if index in indices], mst_lengths)
+                sampled_tokens = tokens_arr[indices].tolist()
+                df_edges = calculate_df_edges(sampled_tokens, mst_matrix)
                 # print("after calculate df edges:") 
                 # print(df_edges)
                 df_edges['quantile'] = (pd.qcut(df_edges['weight'], q=99, duplicates='drop').rank(pct=True) * 100).fillna(50).apply(int)
                 self.dfs.append(df_edges.assign(index_text=object_name))
                 ###
-                mst_lens = np.sort(get_mst_edge_lengths(pts))
+                mst_lens = np.sort(mst_matrix[mst_matrix > 0])
                 self.envelopes[(n, r)] = np.sort(mst_lens)
                 self.log_envelopes[(n, r)] = log_scale(self.envelopes[(n, r)], grid=self.u_grid)
                 for p in self.p_list:
@@ -331,15 +338,16 @@ class PHDimScale:
                     s_upper = upper_quantile_trimmed_mst_sum(mst_lens, p=p, alpha=self.alpha)
                     s_range = double_quantile_trimmed_mst_sum(mst_lens, p_lower=p, p_upper=min(1, p+self.p_range), alpha=self.alpha)
                     rows_p.append({"alpha":self.alpha, "n": n, "rep": r, "p": p, "S_lower": s_lower, "S_upper": s_upper, "S_range": s_range})
-            df_p = pd.DataFrame(rows_p)
-            self.agg_p_lower = df_p.groupby(["n", "p", "alpha"], as_index=False)["S_lower"].mean()
-            self.agg_p_upper = df_p.groupby(["n", "p", "alpha"], as_index=False)["S_upper"].mean()
-            self.agg_p_range = df_p.groupby(["n", "p", "alpha"], as_index=False)["S_range"].mean()
-        
+
             self.mats = np.stack([self.envelopes[(n, r)] for r in range(self.replicates)], axis=0)
             self.env_mean_by_n[n] = np.nanmean(self.mats, axis=0)
             self.log_mats = np.stack([self.log_envelopes[(n, r)] for r in range(self.replicates)], axis=0)
             self.log_env_mean_by_n[n] = np.nanmean(self.log_mats, axis=0)
+
+        df_p = pd.DataFrame(rows_p)
+        self.agg_p_lower = df_p.groupby(["n", "p", "alpha"], as_index=False)["S_lower"].mean()
+        self.agg_p_upper = df_p.groupby(["n", "p", "alpha"], as_index=False)["S_upper"].mean()
+        self.agg_p_range = df_p.groupby(["n", "p", "alpha"], as_index=False)["S_range"].mean()
         d_hat_stats_df = self.get_d_hat_stats(object_name)
         d_energy_range_stats_df = self.get_d_energy_stats(object_name, self.agg_p_range, "trimmered_energy_range", "S_range")
         d_energy_upper_stats_df = self.get_d_energy_stats(object_name, self.agg_p_upper, "trimmered_energy_upper", "S_upper")
@@ -353,8 +361,7 @@ class PHDimScale:
         for u0 in self.p_list:
             j = int(np.argmin(np.abs(self.u_grid - u0)))
             xs, ys = [], []
-            for n in self.n_fraction_list:
-                n = int(n * self.len_text)
+            for n in self.n_values:
                 b = self.log_env_mean_by_n[n][j]
                 if b > 0:
                     xs.append(np.log(n))
@@ -384,11 +391,9 @@ class PHDimScale:
         # obj_name = 'no name'
         for p in self.p_list:
             sub = agg_p[agg_p["p"] == p].sort_values("n")
-            xs = np.log([int(self.len_text * n) for n in self.n_fraction_list])
-#            print("before np.log")
-            ys = np.log(sub[key].values)
-#            print("after np.log")
-        
+            xs = np.log(sub["n"].to_numpy(dtype=float))
+            ys = np.log(sub[key].to_numpy(dtype=float))
+
             slope, intercept, r2 = _fit_loglog_slope(xs, ys)
             d_hat = _safe_d_from_energy_slope(self.alpha, slope)
             
