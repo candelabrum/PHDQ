@@ -69,6 +69,7 @@ def main() -> None:
         )
 
     df_plot = df_en.rename(columns={"label": "model"}).copy()
+    df_plot["model"] = df_plot["model"].astype(str)
     number_of_texts = df_plot.shape[0]
     min_count_plot = max(1, number_of_texts * args.min_count_ratio)
 
