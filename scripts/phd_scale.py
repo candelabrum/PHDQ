@@ -311,12 +311,16 @@ class PHDimScale:
                 indices = np.random.choice(embeds.shape[0], size=n, replace=self.replace)
                 pts = embeds[indices, :]
 
-                ###    
+                ###
+                # print("before mst lengths:") 
                 mst_lengths = get_mst_edge_lengths(pts, return_matrix=True)
+                # print("after mst lengths:") 
                 # print("tokens len: ", len([token for index, token in enumerate(tokens) if index in indices]))
                 # print("mst_lengts: ", mst_lengths.shape)
                 df_edges = calculate_df_edges([token for index, token in enumerate(tokens) if index in indices], mst_lengths)
-                df_edges['quantile'] = (pd.qcut(df_edges['weight'], q=99, duplicates='drop').rank(pct=True) * 100).apply(int)
+                # print("after calculate df edges:") 
+                # print(df_edges)
+                df_edges['quantile'] = (pd.qcut(df_edges['weight'], q=99, duplicates='drop').rank(pct=True) * 100).fillna(50).apply(int)
                 self.dfs.append(df_edges.assign(index_text=object_name))
                 ###
                 mst_lens = np.sort(get_mst_edge_lengths(pts))
