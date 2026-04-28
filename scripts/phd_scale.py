@@ -325,7 +325,8 @@ class PHDimScale:
         n_fraction_list=[0.2, 0.4, 0.6, 0.8, 1.0],
         alpha=1.0,
         p_range=0.5,
-        replace=True
+        replace=True, 
+        replicates=10
     ):
         self.p_list = p_list
         self.n_fraction_list = n_fraction_list
@@ -339,7 +340,7 @@ class PHDimScale:
         self.log_envelopes = dict()
         self.env_mean_by_n = {}
         self.log_env_mean_by_n = {}
-        self.replicates = 10  # count retries for decreasing std
+        self.replicates = replicates  # count retries for decreasing std
         self.dfs = []
         self.replace=replace
 
