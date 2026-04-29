@@ -108,6 +108,48 @@ def compute_roc_auc_by_param(df_joined: pd.DataFrame, metric_col: str) -> pd.Dat
     return pd.DataFrame(roc_rows).sort_values("param_value").reset_index(drop=True)
 
 
+def build_text_dhat_with_phd_df(
+    df_en: pd.DataFrame,
+    d_energy_range_stats_df_list: list,
+) -> pd.DataFrame:
+    if "text" not in df_en.columns:
+        raise ValueError("Column 'text' is required in df_en.")
+    if "phd" not in df_en.columns:
+        raise ValueError("Column 'phd' is required in df_en.")
+
+    text_series = df_en["text"].reset_index(drop=True)
+    if len(d_energy_range_stats_df_list) != len(text_series):
+        raise ValueError(
+            "Length mismatch: d_energy_range_stats_df_list and df_en rows must match. "
+            f"Got {len(d_energy_range_stats_df_list)} vs {len(text_series)}."
+        )
+
+    rows = []
+    for idx, stats_df in enumerate(d_energy_range_stats_df_list):
+        stats_local = stats_df[["param_value", "d_hat"]].copy()
+        stats_local["text"] = text_series.iloc[idx]
+        rows.append(stats_local)
+
+    long_df = pd.concat(rows, ignore_index=True)
+    wide_df = long_df.pivot_table(
+        index="text",
+        columns="param_value",
+        values="d_hat",
+        aggfunc="first",
+    ).reset_index()
+
+    def _format_param_col(param_value: float) -> str:
+        formatted = format(float(param_value), ".12g")
+        formatted = formatted.replace("-", "m").replace(".", "_")
+        return f"d_hat_p_{formatted}"
+
+    wide_df.columns = ["text"] + [_format_param_col(col) for col in wide_df.columns[1:]]
+
+    text_phd_df = df_en[["text", "phd"]].drop_duplicates(subset=["text"])
+    result_df = wide_df.merge(text_phd_df, on="text", how="left")
+    return result_df
+
+
 def main() -> None:
     args = parse_args()
 
@@ -150,6 +192,11 @@ def main() -> None:
         ("d_energy_upper", d_energy_upper_stats_df_list),
         ("d_energy_lower", d_energy_lower_stats_df_list),
     ]
+
+    text_dhat_phd_df = build_text_dhat_with_phd_df(df_en, d_energy_range_stats_df_list)
+    csv_path = args.output_dir / f"padben_{suffix}_d_energy_range_text_dhat_phd.csv"
+    text_dhat_phd_df.to_csv(csv_path, index=False)
+
     fig, axes = plt.subplots(2, 2, figsize=(16, 12))
     axes = axes.flatten()
 
@@ -202,6 +249,7 @@ def main() -> None:
     plt.close(fig)
 
     print(f"Saved combined figure to: {output_path}")
+    print(f"Saved text-dhat-phd CSV to: {csv_path} (shape={text_dhat_phd_df.shape})")
 
 
 if __name__ == "__main__":
