@@ -71,7 +71,7 @@ class PH():
 
     def fit_transform(self, X, dist=False):
         mx_points = X.shape[0]
-        mn_points = 40
+        mn_points = 10
         step = max(1, ( mx_points - mn_points ) // 10)
         self.distance_matrix = dist
 
@@ -113,7 +113,7 @@ class PH():
             s += adj_matrix[v][ancestor[v]] ** power
         return s.item()
 
-    def calculate_ph_dim(self, W, min_points, max_points, point_jump, alpha=1.0, restarts=3, resamples=3):
+    def calculate_ph_dim(self, W, min_points, max_points, point_jump, alpha=1.0, restarts=7, resamples=7):
         '''
         Estimation of the intrinsic (upper-box) dimension of the given point cloud W.
         Parameters:
@@ -159,7 +159,7 @@ class PH():
                 m_candidates.append(result)
                 
         if len(m_candidates) > 0:
-            m = np.mean(m_candidates)
+            m = np.median(m_candidates)
         else:
             m = 0
         return alpha / (1 - m)

@@ -141,7 +141,7 @@ def get_raw_phd(points, alpha=1.0):
     mx_points = points.shape[1]
     mn_points = MIN_SUBSAMPLE
     step = max(1, (mx_points - mn_points) // INTERMEDIATE_POINTS)
-    solver = PHD(alpha=alpha, metric='euclidean', n_points=7)
+    solver = PHD(alpha=alpha, metric='euclidean', n_points=9)
 
     return solver.fit_transform(points.T, min_points=mn_points, max_points=mx_points - step, point_jump=step)
 
